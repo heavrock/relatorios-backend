@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Controle - Relatórios Técnicos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+        }
+        .header-info { display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; align-items: center; }
+        .header-info label { font-weight: 600; text-align: right; }
+        .data-table { width: 100%; border-collapse: collapse; min-width: 600px; }
+        .data-table th, .data-table td { border: 1px solid #d1d5db; padding: 6px 8px; text-align: center; vertical-align: middle; }
+        .data-table th { background-color: #f3f4f6; font-weight: 600; }
+        .data-table td.label-cell { text-align: left; font-weight: 500; background-color: #f9fafb; }
+        .input-yellow { background-color: #fef9c3; width: 100%; text-align: center; border: 1px solid #fde047; border-radius: 4px; padding: 4px; }
+        .input-yellow::placeholder { color: #a1a1aa; }
+        .output-span { display: block; width: 100%; height: 100%; padding: 4px; min-height: 28px; border-radius: 4px; transition: background-color 0.3s; }
+        .output-blue { background-color: #e0f2fe; }
+        .section-title { background-color: #dbeafe; color: #1e3a8a; font-weight: 700; text-align: center; padding: 8px; margin-top: 1.5rem; margin-bottom: 0.5rem; border-radius: 6px; }
+        .unit-selector {
+            padding: 2px 4px;
+            font-size: 12px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            background-color: white;
+            margin-left: 8px;
+        }
+        .menu-button {
+            background-image: linear-gradient(to right, #4f46e5 0%, #7c3aed 51%, #4f46e5 100%);
+            transition: 0.5s;
+            background-size: 200% auto;
+            box-shadow: 0 4px 15px 0 rgba(79, 70, 229, 0.75);
+        }
+        .menu-button:hover {
+            background-position: right center;
+        }
+        .menu-button:disabled {
+            background-image: none;
+            background-color: #9ca3af;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        
+        #transformer-insulation-grid {
+            display: grid;
+            grid-template-columns: repeat(1, 1fr);
+            border: 2px solid #9ca3af;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-top: 1rem;
+        }
+        @media (min-width: 768px) { #transformer-insulation-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (min-width: 1024px) { #transformer-insulation-grid { grid-template-columns: repeat(3, 1fr); } }
+
+        .insulation-cell { border-bottom: 1px solid #d1d5db; }
+        .insulation-cell:last-child { border-bottom: none; }
+        
+        @media (min-width: 1024px) {
+            .insulation-cell { border-right: 1px solid #d1d5db; }
+            .insulation-cell:nth-child(3n) { border-right: none; }
+            .insulation-cell:nth-last-child(-n+3) { border-bottom: none; }
+        }
+        @media (min-width: 768px) and (max-width: 1023px) {
+             .insulation-cell { border-right: 1px solid #d1d5db; }
+             .insulation-cell:nth-child(2n) { border-right: none; }
+             .insulation-cell:nth-last-child(-n+2) { border-bottom: none; }
+        }
+
+        .cell-title { background-color: #e5e7eb; font-weight: 600; padding: 6px; text-align: center; border-bottom: 1px solid #d1d5db; font-size: 12px; }
+        .cell-content { padding: 8px; }
+        .measurement-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; align-items: center; margin-bottom: 6px; }
+        .measurement-item { text-align: center; }
+        .measurement-item label { font-size: 11px; font-weight: 500; display: block; margin-bottom: 2px; }
+        .measurement-item .input-group { display: flex; align-items: center; justify-content: center; }
+        .measurement-item input { max-width: 70px; padding: 2px 4px; font-size: 13px; }
+        .measurement-item span.unit { font-size: 12px; font-weight: 500; margin-left: 4px; }
+        .correction-title { text-align: center; font-weight: 500; font-size: 12px; padding: 4px; background-color: #f9fafb; border-top: 1px solid #d1d5db; border-bottom: 1px solid #d1d5db; margin: 8px -8px; }
+        .indices-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+        .index-item { text-align: center; }
+        .index-item label { font-size: 12px; font-weight: 600; display: block; margin-bottom: 2px; }
+        .index-item span { display: block; padding: 4px; border-radius: 4px; font-weight: 500; min-height: 28px; }
+        .status-cell { padding: 6px; border-radius: 6px; text-align: center; font-weight: bold; color: white; font-size: 12px; min-height: 32px; display: flex; align-items: center; justify-content: center; width: 100%; }
+        .report-page { border: 1px solid #ccc; padding: 2rem; max-width: 800px; aspect-ratio: 210 / 297; margin: 2rem auto; background: white; display: flex; flex-direction: column; }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <!-- O HTML do corpo (body) permanece exatamente o mesmo. -->
+    <!-- As alterações estão apenas no SCRIPT no final do ficheiro. -->
+
+    <!-- TELA DO MENU PRINCIPAL -->
+    <div id="menu-screen">
+        <div class="min-h-screen bg-gray-800 flex flex-col items-center justify-center p-4">
+            <h1 class="text-4xl font-bold text-white mb-8">Painel de Controle</h1>
+            
+            <div class="mb-8 w-full max-w-sm">
+                <label for="company-select" class="block text-center text-lg text-indigo-300 mb-2">Selecione a Empresa</label>
+                <select id="company-select" class="w-full p-3 text-center rounded-lg border-2 border-indigo-400 bg-gray-700 text-white focus:outline-none focus:border-indigo-200">
+                    <option value="unitech">UNITECH-NIT</option>
+                    <option value="powertech">POWERTECH</option>
+                    <option value="unitedpower">UNITEDPOWER</option>
+                </select>
+            </div>
+
+            <div class="w-full max-w-4xl">
+                 <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 text-center">
+                    <button id="cover-btn" class="menu-button text-white font-bold py-4 px-6 rounded-xl text-lg">EDITAR CAPA</button>
+                    <button id="index-btn" class="menu-button text-white font-bold py-4 px-6 rounded-xl text-lg">INDICE</button>
+                    <button id="export-full-report-btn" class="menu-button text-white font-bold py-4 px-6 rounded-xl text-lg">SALVAR / EXPORTAR RELATÓRIO</button>
+                    
+                    <button id="gerador-btn" class="menu-button text-white font-bold py-4 px-6 rounded-xl text-lg">GERADOR</button>
+                    <button id="transformer-btn" class="menu-button text-white font-bold py-4 px-6 rounded-xl text-lg">TRAFO X3</button>
+                    <button id="motor-btn" class="menu-button text-white font-bold py-4 px-6 rounded-xl text-lg">MOTOR</button>
+                </div>
+                <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-xl mx-auto">
+                     <button class="wip-btn menu-button text-white font-bold py-4 px-6 rounded-xl text-lg">TRAFO INDUTOR</button>
+                     <button class="wip-btn menu-button text-white font-bold py-4 px-6 rounded-xl text-lg">TRAFO X6</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TELA DA CAPA DO RELATÓRIO -->
+    <div id="cover-screen" class="hidden">
+        <div class="container mx-auto p-4">
+            <h1 class="text-2xl font-bold text-center text-blue-800 mb-4">Editor da Capa do Relatório</h1>
+            
+            <div class="max-w-2xl mx-auto bg-gray-50 p-6 rounded-lg shadow-md mb-8">
+                <h2 class="text-lg font-semibold mb-4 border-b pb-2">Informações da Capa</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="cover-cliente" class="block text-sm font-medium text-gray-700 mb-1">Empresa</label>
+                        <input type="text" id="cover-cliente" placeholder="Ex: OCEANPACT" class="p-2 border rounded w-full">
+                    </div>
+                    <div>
+                        <label for="cover-local" class="block text-sm font-medium text-gray-700 mb-1">Embarcação/Local</label>
+                        <input type="text" id="cover-local" placeholder="Ex: SEWARD JOHNSON" class="p-2 border rounded w-full">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Imagem do Equipamento</label>
+                        <input type="file" id="cover-image-upload" class="hidden" accept="image/*">
+                        <label for="cover-image-upload" class="w-full inline-block text-center bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition cursor-pointer">
+                            CARREGAR IMAGEM DO NAVIO
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div id="cover-preview" class="report-page">
+                <header class="flex justify-end items-start">
+                    <div class="text-right text-xs">
+                        <p class="font-bold" id="cover-preview-company-name">UNITECH-NIT</p>
+                        <p id="cover-preview-company-address">Rua Galvão Nº 28</p>
+                        <p>Barreto – Niterói – Rio de Janeiro</p>
+                        <p>Telefones: (21) 96762-2155 / (21) 97119-2155</p>
+                        <p>(21)2608-4184</p>
+                    </div>
+                </header>
+                <main class="flex-grow flex flex-col items-center justify-center text-center -mt-8">
+                    <h1 id="cover-preview-cliente" class="text-4xl font-bold text-black border-b-2 border-black pb-2">OCEANPACT</h1>
+                    <h2 id="cover-preview-local" class="text-3xl font-bold text-black mt-2">SEWARD JOHNSON</h2>
+                    <p class="mt-8 text-xl">Relatório técnico de medição de resistência de isolamento elétrico (Megagem)</p>
+                    <img id="cover-preview-image" src="https://placehold.co/400x200/e2e8f0/475569?text=Imagem+do+Navio" alt="Imagem do equipamento" class="mt-6 max-w-sm w-full h-auto object-cover rounded-md shadow-lg">
+                </main>
+            </div>
+
+             <div class="flex flex-col sm:flex-row flex-wrap gap-4 justify-center my-4">
+                <button id="cover-back-to-menu-btn" class="bg-gray-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-gray-600 transition w-full sm:w-auto">Voltar ao Menu</button>
+             </div>
+        </div>
+    </div>
+
+    <!-- TELA DO ÍNDICE -->
+    <div id="index-screen" class="hidden">
+        <div class="container mx-auto p-4">
+            <h1 class="text-2xl font-bold text-center text-blue-800 mb-4">Índice do Relatório</h1>
+            <div id="index-page" class="report-page">
+                <header class="flex justify-end items-start">
+                    <div class="text-right text-xs">
+                        <p class="font-bold" id="index-company-name"></p>
+                        <p id="index-company-address"></p>
+                        <p>Barreto – Niterói – Rio de Janeiro</p>
+                        <p id="index-company-phones"></p>
+                        <p id="index-company-phone2"></p>
+                    </div>
+                </header>
+                <main id="index-content-list" class="flex-grow p-4">
+                    <!-- Conteúdo do índice será carregado do servidor -->
+                </main>
+            </div>
+            <div class="flex flex-col sm:flex-row flex-wrap gap-4 justify-center my-4">
+                <button id="index-back-to-menu-btn" class="bg-gray-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-gray-600 transition w-full sm:w-auto">Voltar ao Menu</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TELA DA PLANILHA DO GERADOR -->
+    <div id="generator-app-screen" class="hidden">
+        <div id="gen-app-container" class="container mx-auto p-2 sm:p-4 md:p-6 bg-white shadow-lg my-4 sm:my-8">
+            <header class="border-b-2 border-gray-200 pb-6 mb-6">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <h1 id="gen-company-name-header" class="text-xl sm:text-2xl font-bold text-blue-800"></h1>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-3">
+                    <div class="header-info"><label>CLIENTE:</label> <input type="text" id="gen-cliente" class="border rounded px-2 py-1 w-full"></div>
+                    <div class="header-info"><label>TÉCNICO:</label> <input type="text" id="gen-tecnico" class="border rounded px-2 py-1 w-full"></div>
+                    <div class="header-info"><label>EQUIP.:</label> <input type="text" id="gen-equipamento" class="border rounded px-2 py-1 w-full"></div>
+                    <div class="header-info"><label>Nº SÉRIE:</label> <input type="text" id="gen-numeroSerie" class="border rounded px-2 py-1 w-full"></div>
+                    <div class="header-info"><label>LOCAL:</label> <input type="text" id="gen-local" class="border rounded px-2 py-1 w-full"></div>
+                    <div class="header-info"><label>AVR:</label> <input type="text" id="gen-avr" class="border rounded px-2 py-1 w-full"></div>
+                    <div class="header-info"><label>TENSÃO:</label> <input type="text" id="gen-tensao" class="border rounded px-2 py-1 w-full"></div>
+                    <div class="header-info"><label>POTÊNCIA:</label> <input type="text" id="gen-potencia" class="border rounded px-2 py-1 w-full"></div>
+                    <div class="header-info sm:col-span-2 lg:col-span-1"><label>DATA:</label> <input type="date" id="gen-data" class="border rounded px-2 py-1 w-full"></div>
+                </div>
+            </header>
+
+            <div class="flex flex-col sm:flex-row flex-wrap gap-4 justify-center my-4">
+                <button id="gen-back-to-menu-btn" class="bg-gray-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-gray-600 transition w-full sm:w-auto">Voltar ao Menu</button>
+                <button id="gen-fillTestData" class="bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700 transition w-full sm:w-auto">Preencher Exemplo</button>
+                <button id="gen-clearForm" class="bg-red-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-red-700 transition w-full sm:w-auto">Limpar</button>
+                <button id="gen-add-sheet-btn" class="menu-button text-white font-bold py-2 px-6 rounded-lg transition w-full sm:w-auto" disabled>Adicionar ao Relatório</button>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6 p-4 bg-gray-50 rounded-lg border">
+                <div class="flex items-center gap-2">
+                    <label for="gen-tempAmbiente" class="font-semibold">Temp. Amb. (°C):</label>
+                    <input type="number" id="gen-tempAmbiente" class="input-yellow w-full">
+                </div>
+                <div class="flex items-center gap-2">
+                    <label for="gen-tempEnrolamento" class="font-semibold">Temp. Enrol. (°C):</label>
+                    <input type="number" id="gen-tempEnrolamento" class="input-yellow w-full" placeholder="Essencial">
+                </div>
+                <div class="flex items-center gap-2 sm:col-span-2 md:col-span-1">
+                    <label for="gen-umidadeRelativa" class="font-semibold">Umidade (%):</label>
+                    <input type="number" id="gen-umidadeRelativa" class="input-yellow w-full">
+                </div>
+            </div>
+            
+            <div id="gen-main-sections-container"></div>
+            <div class="text-center my-4">
+                <button id="gen-togglePmg" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300 transition">Ativar Seção PMG</button>
+            </div>
+            <div id="gen-pmg-section-container" class="hidden"></div>
+            <div id="gen-extra-sections-container"></div>
+        </div>
+    </div>
+    
+    <!-- TELA DA PLANILHA DO MOTOR -->
+    <div id="motor-app-screen" class="hidden">
+        <div id="motor-app-container" class="container mx-auto p-2 sm:p-4 md:p-6 bg-white shadow-lg my-4 sm:my-8">
+            <header class="border-b-2 border-gray-200 pb-6 mb-6">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <h1 id="motor-company-name-header" class="text-xl sm:text-2xl font-bold text-blue-800"></h1>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-3">
+                    <div class="header-info"><label>CLIENTE:</label> <input type="text" id="motor-cliente" class="border rounded px-2 py-1 w-full"></div>
+                    <div class="header-info"><label>LOCAL:</label> <input type="text" id="motor-local" class="border rounded px-2 py-1 w-full"></div>
+                    <div class="header-info"><label>DATA:</label> <input type="date" id="motor-data" class="border rounded px-2 py-1 w-full"></div>
+                    <div class="header-info"><label>EQUIP.:</label> <input type="text" id="motor-equipamento" class="border rounded px-2 py-1 w-full"></div>
+                    <div class="header-info"><label>Nº SÉRIE:</label> <input type="text" id="motor-numeroSerie" class="border rounded px-2 py-1 w-full"></div>
+                    <div class="header-info"><label>FAB./MODELO:</label> <input type="text" id="motor-fabricante" class="border rounded px-2 py-1 w-full"></div>
+                    <div class="header-info"><label>TENSÃO:</label> <input type="text" id="motor-tensao" class="border rounded px-2 py-1 w-full"></div>
+                    <div class="header-info"><label>POTÊNCIA:</label> <input type="text" id="motor-potencia" class="border rounded px-2 py-1 w-full"></div>
+                    <div class="header-info"><label>ROTAÇÃO:</label> <input type="text" id="motor-rotacao" class="border rounded px-2 py-1 w-full"></div>
+                </div>
+            </header>
+
+            <div class="flex flex-col sm:flex-row flex-wrap gap-4 justify-center my-4">
+                <button id="motor-back-to-menu-btn" class="bg-gray-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-gray-600 transition w-full sm:w-auto">Voltar ao Menu</button>
+                <button id="motor-fillTestData" class="bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700 transition w-full sm:w-auto">Preencher Exemplo</button>
+                <button id="motor-clearForm" class="bg-red-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-red-700 transition w-full sm:w-auto">Limpar</button>
+                <button id="motor-add-sheet-btn" class="menu-button text-white font-bold py-2 px-6 rounded-lg transition w-full sm:w-auto" disabled>Adicionar ao Relatório</button>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6 p-4 bg-gray-50 rounded-lg border">
+                <div class="flex items-center gap-2">
+                    <label for="motor-tempAmbiente" class="font-semibold">Temp. Amb. (°C):</label>
+                    <input type="number" id="motor-tempAmbiente" class="input-yellow w-full">
+                </div>
+                <div class="flex items-center gap-2">
+                    <label for="motor-tempEnrolamento" class="font-semibold">Temp. Enrol. (°C):</label>
+                    <input type="number" id="motor-tempEnrolamento" class="input-yellow w-full" placeholder="Essencial">
+                </div>
+                <div class="flex items-center gap-2 sm:col-span-2 md:col-span-1">
+                    <label for="motor-umidadeRelativa" class="font-semibold">Umidade (%):</label>
+                    <input type="number" id="motor-umidadeRelativa" class="input-yellow w-full">
+                </div>
+            </div>
+            
+            <div id="motor-sections-container"></div>
+        </div>
+    </div>
+
+    <!-- TELA DA PLANILHA DO TRANSFORMADOR X3 -->
+    <div id="transformer-app-screen" class="hidden">
+        <div id="transformer-app-container" class="container mx-auto p-2 sm:p-4 md:p-6 bg-white shadow-lg my-4 sm:my-8">
+            <header class="border-b-2 border-gray-200 pb-6 mb-6">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <h1 id="transformer-company-name-header" class="text-xl sm:text-2xl font-bold text-blue-800"></h1>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-3">
+                    <div class="header-info"><label>CLIENTE:</label> <input type="text" id="transformer-cliente" class="border rounded px-2 py-1 w-full"></div>
+                    <div class="header-info"><label>LOCAL:</label> <input type="text" id="transformer-local" class="border rounded px-2 py-1 w-full"></div>
+                    <div class="header-info"><label>DATA:</label> <input type="date" id="transformer-data" class="border rounded px-2 py-1 w-full"></div>
+                    <div class="header-info"><label>EQUIP.:</label> <input type="text" id="transformer-equipamento" class="border rounded px-2 py-1 w-full"></div>
+                    <div class="header-info"><label>Nº SÉRIE:</label> <input type="text" id="transformer-numeroSerie" class="border rounded px-2 py-1 w-full"></div>
+                    <div class="header-info"><label>FAB./MODELO:</label> <input type="text" id="transformer-fabricante" class="border rounded px-2 py-1 w-full"></div>
+                    <div class="header-info"><label>TENSÃO:</label> <input type="text" id="transformer-tensao" class="border rounded px-2 py-1 w-full"></div>
+                    <div class="header-info"><label>POTÊNCIA:</label> <input type="text" id="transformer-potencia" class="border rounded px-2 py-1 w-full"></div>
+                </div>
+            </header>
+
+            <div class="flex flex-col sm:flex-row flex-wrap gap-4 justify-center my-4">
+                <button id="transformer-back-to-menu-btn" class="bg-gray-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-gray-600 transition w-full sm:w-auto">Voltar ao Menu</button>
+                <button id="transformer-fillTestData" class="bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700 transition w-full sm:w-auto">Preencher Exemplo</button>
+                <button id="transformer-clearForm" class="bg-red-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-red-700 transition w-full sm:w-auto">Limpar</button>
+                <button id="transformer-add-sheet-btn" class="menu-button text-white font-bold py-2 px-6 rounded-lg transition w-full sm:w-auto" disabled>Adicionar ao Relatório</button>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6 p-4 bg-gray-50 rounded-lg border">
+                <div class="flex items-center gap-2">
+                    <label for="transformer-tempAmbiente" class="font-semibold">Temp. Amb. (°C):</label>
+                    <input type="number" id="transformer-tempAmbiente" class="input-yellow w-full">
+                </div>
+                <div class="flex items-center gap-2">
+                    <label for="transformer-tempTrafo" class="font-semibold">Temp. no Trafo (°C):</label>
+                    <input type="number" id="transformer-tempTrafo" class="input-yellow w-full" placeholder="Essencial">
+                </div>
+                <div class="flex items-center gap-2 sm:col-span-2 md:col-span-1">
+                    <label for="transformer-umidadeRelativa" class="font-semibold">Umidade (%):</label>
+                    <input type="number" id="transformer-umidadeRelativa" class="input-yellow w-full">
+                </div>
+            </div>
+            
+            <div id="transformer-sections-container"></div>
+        </div>
+    </div>
+
+    <!-- Overlay de Limite de Uso e Modal de WIP -->
+    <div id="usage-limit-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-95 hidden items-center justify-center text-center text-white p-8 z-[100]">
+        <div>
+            <h2 class="text-3xl font-bold text-red-500 mb-4">Limite de Uso Atingido</h2>
+            <p class="text-xl">Para continuar utilizando esta ferramenta, por favor, entre em contato com o Técnico Roosevelt Santos.</p>
+        </div>
+    </div>
+    <div id="wip-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden items-center justify-center p-4 z-50">
+        <div class="bg-white p-6 rounded-lg shadow-2xl max-w-sm w-full text-center">
+            <h3 class="text-xl font-bold text-blue-800 mb-4">Em Desenvolvimento</h3>
+            <p class="text-gray-700 mb-6">Esta funcionalidade estará disponível em breve!</p>
+            <button id="close-wip-modal" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">Fechar</button>
+        </div>
+    </div>
+    <div id="pdf-loader-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-80 hidden items-center justify-center text-center text-white p-8 z-[200]">
+        <div>
+            <svg class="animate-spin h-10 w-10 text-white mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <h2 class="text-2xl font-bold">Gerando Relatório em PDF...</h2>
+            <p class="text-lg mt-2">Isso pode levar alguns segundos. Por favor, aguarde.</p>
+        </div>
+    </div>
+
+    <script>
+    // ==================================================================================
+    // --- SCRIPT ATUALIZADO PARA COMUNICAR COM O SERVIDOR ---
+    // ==================================================================================
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- DADOS GLOBAIS E CONFIGURAÇÃO DA API ---
+        const API_URL = 'https://api-relatorios-megagem.onrender.com/api'; // ALTERADO PARA O URL PÚBLICO
+        let localReportsCache = [];
+        let currentlyEditingId = null;
+        
+        // --- FUNÇÕES DE COMUNICAÇÃO COM A API (COM MELHORIAS) ---
+
+        async function loadReportsFromServer() {
+            try {
+                console.log(`[API] A carregar relatórios de: ${API_URL}/reports`);
+                const response = await fetch(`${API_URL}/reports`);
+                if (!response.ok) throw new Error(`Falha ao carregar relatórios. Servidor respondeu com status: ${response.status}`);
+                localReportsCache = await response.json();
+                console.log('[API] Relatórios carregados com sucesso:', localReportsCache);
+                updateIndexPage();
+            } catch (error) {
+                console.error('Detalhes do erro ao carregar:', error);
+                alert(`Falha na comunicação com o servidor. Verifique a sua ligação e se o servidor backend está online. Detalhe técnico: ${error.message}`);
+            }
+        }
+
+        async function saveReportToServer(reportData) {
+            try {
+                console.log(`[API] A guardar novo relatório em: ${API_URL}/reports`);
+                const response = await fetch(`${API_URL}/reports`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(reportData)
+                });
+                if (!response.ok) throw new Error(`Falha ao guardar o relatório. Servidor respondeu com status: ${response.status}`);
+                alert(`Relatório para "${reportData.header.equipamento}" guardado com sucesso!`);
+                await loadReportsFromServer();
+            } catch (error) {
+                console.error('Detalhes do erro ao guardar:', error);
+                alert(`Ocorreu um erro ao guardar o relatório. Detalhe técnico: ${error.message}`);
+            }
+        }
+        
+        async function updateReportInServer(id, reportData) {
+            try {
+                console.log(`[API] A atualizar relatório em: ${API_URL}/reports/${id}`);
+                const response = await fetch(`${API_URL}/reports/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(reportData)
+                });
+                if (!response.ok) throw new Error(`Falha ao atualizar o relatório. Servidor respondeu com status: ${response.status}`);
+                alert(`Relatório para "${reportData.header.equipamento}" atualizado com sucesso!`);
+                await loadReportsFromServer();
+            } catch (error) {
+                console.error('Detalhes do erro ao atualizar:', error);
+                alert(`Ocorreu um erro ao atualizar o relatório. Detalhe técnico: ${error.message}`);
+            }
+        }
+
+        async function deleteReportFromServer(reportId) {
+            if (!confirm('Tem a certeza que deseja apagar este relatório? Esta ação não pode ser desfeita.')) return;
+            try {
+                console.log(`[API] A apagar relatório em: ${API_URL}/reports/${reportId}`);
+                const response = await fetch(`${API_URL}/reports/${reportId}`, { method: 'DELETE' });
+                if (!response.ok) throw new Error(`Falha ao apagar o relatório. Servidor respondeu com status: ${response.status}`);
+                alert('Relatório apagado com sucesso!');
+                await loadReportsFromServer();
+            } catch (error) {
+                console.error('Detalhes do erro ao apagar:', error);
+                alert(`Ocorreu um erro ao apagar o relatório. Detalhe técnico: ${error.message}`);
+            }
+        }
+
+        // --- LÓGICA DA APLICAÇÃO (MODIFICADA) ---
+
+        function updateIndexPage() {
+            const indexList = document.getElementById('index-content-list');
+            if (!localReportsCache || localReportsCache.length === 0) {
+                indexList.innerHTML = '<p class="text-gray-400">Nenhum relatório encontrado no servidor.</p>';
+                return;
+            }
+            let html = '<h2 class="text-xl font-bold mb-4">Equipamentos Analisados:</h2><ul class="list-none space-y-2">';
+            localReportsCache.forEach((report, index) => {
+                 html += `
+                    <li class="flex items-center justify-between p-2 rounded-md hover:bg-gray-100">
+                        <span>${index + 1}. <a href="#" class="text-blue-600 hover:underline" data-report-index="${index}" data-report-type="${report.type}">${report.header.equipamento || 'Relatório sem nome'}</a></span>
+                        <button data-delete-id="${report.id}" class="text-red-500 hover:text-red-700 font-bold text-xl px-2">&times;</button>
+                    </li>`;
+            });
+            html += '</ul>';
+            indexList.innerHTML = html;
+        }
+
+        document.getElementById('index-content-list').addEventListener('click', (e) => {
+            if (e.target.dataset.reportIndex) {
+                e.preventDefault();
+                loadReportForEditing(parseInt(e.target.dataset.reportIndex, 10));
+            }
+            if (e.target.dataset.deleteId) {
+                e.preventDefault();
+                deleteReportFromServer(e.target.dataset.deleteId);
+            }
+        });
+
+        const reportSheetHandlers = {
+            init: (container, recalc, getEl, clearForm, collectSheetData, config) => {
+                const addSheetBtn = getEl('add-sheet-btn');
+                const fillTestDataBtn = getEl('fillTestData');
+                
+                if(fillTestDataBtn) {
+                    fillTestDataBtn.addEventListener('click', () => {
+                        if (!config.testData) { console.error(`Dados de teste não encontrados para ${config.appName}`); return; }
+                        Object.entries(config.testData.header).forEach(([key, value]) => {
+                            const el = getEl(key);
+                            if(el) el.value = value;
+                        });
+                        config.sections.forEach(section => {
+                            section.rows.forEach(row => {
+                                const data = config.testData.sections[section.name]?.[row.id];
+                                if (data === undefined) return;
+                                if (section.type === 'insulation') {
+                                     const reg30sInput = container.querySelector(`input[data-row="${row.id}"][data-col="reg30s"]`); if(reg30sInput) reg30sInput.value = data[0];
+                                     const reg1minInput = container.querySelector(`input[data-row="${row.id}"][data-col="reg1min"]`); if(reg1minInput) reg1minInput.value = data[1];
+                                     const reg10minInput = container.querySelector(`input[data-row="${row.id}"][data-col="reg10min"]`); if(reg10minInput) reg10minInput.value = data[2];
+                                } else if (section.type === 'diodes') {
+                                    if (data.d1_d6) { data.d1_d6.forEach((val, i) => { const input = container.querySelector(`input[data-row="gen-diodes-dir"][data-col="d${i + 1}"]`); if (input) input.value = val; }); }
+                                    if (data.d7_d12) { data.d7_d12.forEach((val, i) => { const input = container.querySelector(`input[data-row="gen-diodes-dir"][data-col="d${i + 7}"]`); if (input) input.value = val; }); }
+                                } else {
+                                    const regInput = container.querySelector(`input[data-row="${row.id}"][data-col="reg"]`);
+                                    if (regInput) {
+                                        regInput.value = (typeof data === 'object' && data !== null && data.reg !== undefined) ? data.reg : data;
+                                    }
+                                }
+                            });
+                        });
+                        recalc();
+                    });
+                }
+
+                if (!addSheetBtn) return;
+                const headerInputs = [getEl('cliente'), getEl('local'), getEl('equipamento')];
+                function validateHeader() {
+                    addSheetBtn.disabled = !headerInputs.every(input => input && input.value.trim() !== '');
+                }
+                headerInputs.forEach(input => { if (input) input.addEventListener('input', validateHeader); });
+
+                addSheetBtn.addEventListener('click', async () => {
+                    const sheetData = collectSheetData(container, config);
+                    
+                    if (currentlyEditingId) {
+                        await updateReportInServer(currentlyEditingId, sheetData);
+                    } else {
+                        await saveReportToServer(sheetData);
+                    }
+
+                    clearForm(true); 
+                    ['equipamento', 'numeroSerie', 'avr', 'tensao', 'potencia', 'tecnico', 'responsavelTecnico', 'rotacao', 'fabricante'].forEach(id => { const el = getEl(id); if(el) el.value = ''; });
+                    validateHeader();
+                    
+                    currentlyEditingId = null;
+                    addSheetBtn.textContent = 'Adicionar ao Relatório';
+
+                    showScreen(screens.index);
+                });
+                validateHeader();
+            }
+        };
+        
+        function loadReportForEditing(index) {
+            const reportData = localReportsCache[index];
+            if (!reportData) return;
+            currentlyEditingId = reportData.id;
+            const configMap = { 'gen': generatorConfig, 'motor': motorConfig, 'transformer': transformerConfig };
+            const config = configMap[reportData.type];
+            if (!config) return;
+            const container = document.getElementById(config.containerId);
+            showScreen(screens[config.prefix]);
+            populateSheetFromData(container, reportData, config);
+            const addBtn = document.getElementById(`${config.prefix}-add-sheet-btn`);
+            if (addBtn) {
+                addBtn.textContent = 'Salvar Alterações';
+                addBtn.disabled = false;
+            }
+        }
+        
+        document.getElementById('export-full-report-btn').addEventListener('click', async () => {
+            if (localReportsCache.length === 0) {
+                alert('Nenhum relatório foi encontrado no servidor para exportar.');
+                return;
+            }
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4');
+            const configMap = { 'gen': generatorConfig, 'motor': motorConfig, 'transformer': transformerConfig };
+            const loader = document.getElementById('pdf-loader-overlay');
+            loader.classList.remove('hidden');
+            loader.classList.add('flex');
+            try {
+                const pdfWidth = doc.internal.pageSize.getWidth();
+                const coverCanvas = await html2canvas(document.getElementById('cover-preview'), { scale: 2, useCORS: true });
+                let pdfHeight = (coverCanvas.height * pdfWidth) / coverCanvas.width;
+                if (isFinite(pdfHeight) && pdfHeight > 0) doc.addImage(coverCanvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pdfWidth, pdfHeight);
+                
+                const indexCanvas = await html2canvas(document.getElementById('index-page'), { scale: 2, useCORS: true });
+                pdfHeight = (indexCanvas.height * pdfWidth) / indexCanvas.width;
+                if (isFinite(pdfHeight) && pdfHeight > 0) { doc.addPage(); doc.addImage(indexCanvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pdfWidth, pdfHeight); }
+
+                for (const report of localReportsCache) {
+                    const config = configMap[report.type];
+                    if (!config) continue;
+                    const originalContainer = document.getElementById(config.containerId);
+                    const clone = originalContainer.cloneNode(true);
+                    clone.id = 'temp-clone-for-pdf';
+                    Object.assign(clone.style, { position: 'absolute', left: '-9999px', top: '0px', width: '1200px' });
+                    document.body.appendChild(clone);
+                    populateSheetFromData(clone, report, config);
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    const sheetCanvas = await html2canvas(clone, { scale: 2, useCORS: true, windowWidth: 1220 });
+                    pdfHeight = (sheetCanvas.height * pdfWidth) / sheetCanvas.width;
+                    if (isFinite(pdfHeight) && pdfHeight > 0) { doc.addPage(); doc.addImage(sheetCanvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pdfWidth, pdfHeight); }
+                    document.body.removeChild(clone);
+                }
+                const cliente = document.getElementById('cover-cliente').value || "Relatório_Técnico";
+                doc.save(`Relatorio_Completo_${cliente.replace(/ /g, '_')}.pdf`);
+            } catch (error) {
+                console.error("Erro ao gerar o PDF:", error);
+                alert("Ocorreu um erro ao gerar o PDF.");
+            } finally {
+                loader.classList.add('hidden');
+                loader.classList.remove('flex');
+            }
+        });
+
+        // --- CÓDIGO DE INICIALIZAÇÃO (SEMELHANTE AO ANTERIOR, MAS REESTRUTURADO) ---
+        const screens = { menu: document.getElementById('menu-screen'), cover: document.getElementById('cover-screen'), index: document.getElementById('index-screen'), gen: document.getElementById('generator-app-screen'), motor: document.getElementById('motor-app-screen'), transformer: document.getElementById('transformer-app-screen'), };
+        const wipModal = document.getElementById('wip-modal');
+        const companySelect = document.getElementById('company-select');
+        const companyData = { 'unitech': { name: 'UNITECH-NIT', address: 'Rua Galvão Nº 28', phones: 'Telefones: (21) 96762-2155 / (21) 97119-2155', phone2: '(21)2608-4184' }, 'powertech': { name: 'POWERTECH', address: 'Endereço Powertech', phones: 'Telefone Powertech', phone2: '' }, 'unitedpower': { name: 'UNITEDPOWER', address: 'Endereço UnitedPower', phones: 'Telefone UnitedPower', phone2: '' } };
+        let currentCompany = companyData['unitech'];
+        const showScreen = (screenToShow) => { Object.values(screens).forEach(screen => { if (screen) screen.classList.add('hidden'); }); if (screenToShow) screenToShow.classList.remove('hidden'); };
+        if (companySelect) { companySelect.addEventListener('change', (e) => { currentCompany = companyData[e.target.value]; document.getElementById('cover-preview-company-name').textContent = currentCompany.name; document.getElementById('cover-preview-company-address').textContent = currentCompany.address; }); }
+        document.getElementById('cover-btn').addEventListener('click', () => { document.getElementById('cover-preview-company-name').textContent = currentCompany.name; document.getElementById('cover-preview-company-address').textContent = currentCompany.address; showScreen(screens.cover); });
+        document.getElementById('index-btn').addEventListener('click', () => { document.getElementById('index-company-name').textContent = currentCompany.name; document.getElementById('index-company-address').textContent = currentCompany.address; document.getElementById('index-company-phones').textContent = currentCompany.phones; document.getElementById('index-company-phone2').textContent = currentCompany.phone2; updateIndexPage(); showScreen(screens.index); });
+        document.getElementById('gerador-btn').addEventListener('click', () => { currentlyEditingId = null; const addBtn = document.getElementById('gen-add-sheet-btn'); if(addBtn) addBtn.textContent = 'Adicionar ao Relatório'; document.getElementById('gen-company-name-header').textContent = currentCompany.name; showScreen(screens.gen); });
+        document.getElementById('motor-btn').addEventListener('click', () => { currentlyEditingId = null; const addBtn = document.getElementById('motor-add-sheet-btn'); if(addBtn) addBtn.textContent = 'Adicionar ao Relatório'; document.getElementById('motor-company-name-header').textContent = currentCompany.name; showScreen(screens.motor); });
+        document.getElementById('transformer-btn').addEventListener('click', () => { currentlyEditingId = null; const addBtn = document.getElementById('transformer-add-sheet-btn'); if(addBtn) addBtn.textContent = 'Adicionar ao Relatório'; document.getElementById('transformer-company-name-header').textContent = currentCompany.name; showScreen(screens.transformer); });
+        document.querySelectorAll('[id$="-back-to-menu-btn"]').forEach(btn => { btn.addEventListener('click', () => showScreen(screens.menu)); });
+        document.querySelectorAll('.wip-btn').forEach(btn => btn.addEventListener('click', () => { wipModal.classList.remove('hidden'); wipModal.classList.add('flex'); }));
+        document.getElementById('close-wip-modal').addEventListener('click', () => { wipModal.classList.add('hidden'); wipModal.classList.remove('flex'); });
+        const getKtInsulation = (temp, targetTemp) => Math.pow(2, (targetTemp - temp) / 10);
+        const getKtOhmic = (temp, targetTemp) => (234.5 + targetTemp) / (234.5 + temp);
+        const statusColors = { 'Perigoso': '#ef4444', 'Pobre': '#f97316', 'Questionável': '#facc15', 'Confiável': '#a3e635', 'Bom': '#4ade80', 'Excelente': '#16a34a', '': '#FFFFFF' };
+        const darkTextStatus = ['Questionável', 'Confiável', 'Bom'];
+        const evaluateIndex = (value, thresholds) => { if (isNaN(value) || value === null || value <= 0) return { status: '', color: statusColors[''] }; for (const t of thresholds) { if (value < t.limit) return { status: t.status, color: statusColors[t.status] }; } return { status: 'Excelente', color: statusColors['Excelente'] }; };
+        const evaluateIA = (v) => evaluateIndex(v, [{ limit: 1, status: 'Perigoso' }, { limit: 1.1, status: 'Pobre' }, { limit: 1.25, status: 'Questionável' }, { limit: 1.4, status: 'Confiável' }, { limit: 1.6, status: 'Bom' }]);
+        const evaluateIP = (v) => evaluateIndex(v, [{ limit: 1, status: 'Perigoso' }, { limit: 1.5, status: 'Pobre' }, { limit: 2, status: 'Questionável' }, { limit: 3, status: 'Confiável' }, { limit: 4, status: 'Bom' }]);
+        function initializeCoverApp() { const inputs = { cliente: document.getElementById('cover-cliente'), local: document.getElementById('cover-local'), }; const imageUpload = document.getElementById('cover-image-upload'); const previews = { cliente: document.getElementById('cover-preview-cliente'), local: document.getElementById('cover-preview-local'), image: document.getElementById('cover-preview-image'), }; function updatePreviewText() { previews.cliente.textContent = inputs.cliente.value || 'CLIENTE'; previews.local.textContent = inputs.local.value || 'LOCAL/EMBARCAÇÃO'; } Object.values(inputs).forEach(input => input.addEventListener('input', updatePreviewText)); imageUpload.addEventListener('change', (event) => { const file = event.target.files[0]; if (file) { previews.image.src = URL.createObjectURL(file); } }); }
+        const createApp = (config) => { const appContainer = document.getElementById(config.containerId); if (!appContainer) return; const getEl = (id) => document.getElementById(`${config.prefix}-${id}`); let isAppBlocked = false; const checkUsage = () => { const usageCount = parseInt(localStorage.getItem(config.usageKey) || '0'); if (usageCount >= config.usageLimit) { isAppBlocked = true; document.body.innerHTML = document.getElementById('usage-limit-overlay').outerHTML; const newOverlay = document.getElementById('usage-limit-overlay'); newOverlay.classList.remove('hidden'); newOverlay.classList.add('flex'); } }; const recalculate = (container = appContainer) => { if (isAppBlocked) return; const tempInput = container.querySelector(`#${config.prefix}-${config.tempInputId}`); const temp = parseFloat(tempInput?.value); const hasTemp = !isNaN(temp); const KtIns = hasTemp ? getKtInsulation(temp, config.insulation.targetTemp) : 1; const KtOhm = hasTemp ? getKtOhmic(temp, config.ohmic.targetTemp) : 1; config.sections.forEach(section => { if (section.type === 'insulation') { section.rows.forEach(row => { const getVal = (col) => container.querySelector(`input[data-row="${row.id}"][data-col="${col}"]`)?.value || ''; const updateSpan = (col, value, bgColor = '#e0f2fe', textColor = 'black') => { const el = container.querySelector(`span[data-row="${row.id}"][data-col="${col}"]`); if (el) { el.textContent = value; el.style.backgroundColor = bgColor; el.style.color = textColor; } }; const updateDiv = (col, value, bgColor = 'transparent', textColor = 'white') => { const el = container.querySelector(`div[data-row="${row.id}"][data-col="${col}"]`); if(el) { el.textContent = value; el.style.backgroundColor = bgColor; el.style.color = textColor; } }; const reg30s = parseFloat(getVal('reg30s')); const reg1min = parseFloat(getVal('reg1min')); const reg10min = parseFloat(getVal('reg10min')); const highValueThreshold = 21000; const isHigh30s = reg30s > highValueThreshold; const isHigh1min = reg1min > highValueThreshold; const isHigh10min = reg10min > highValueThreshold; const isAnyHigh = isHigh30s || isHigh1min || isHigh10min; const corr30sNum = !isNaN(reg30s) ? (hasTemp ? reg30s * KtIns : reg30s) : NaN; const corr1minNum = !isNaN(reg1min) ? (hasTemp ? reg1min * KtIns : reg1min) : NaN; const corr10minNum = !isNaN(reg10min) ? (hasTemp ? reg10min * KtIns : reg10min) : NaN; let ia_val, ip_val, ia_result, ip_result; if (isAnyHigh) { ia_val = 1.6; ip_val = 4.0; ia_result = { status: 'Excelente', color: statusColors['Excelente'] }; ip_result = { status: 'Excelente', color: statusColors['Excelente'] }; } else { ia_val = (reg1min > 0 && reg30s > 0) ? (reg1min / reg30s) : null; ip_val = (reg10min > 0 && reg1min > 0) ? (reg10min / reg1min) : null; ia_result = evaluateIA(ia_val); ip_result = evaluateIP(ip_val); } const iaTextColor = darkTextStatus.includes(ia_result.status) ? 'black' : 'white'; const ipTextColor = darkTextStatus.includes(ip_result.status) ? 'black' : 'white'; updateSpan('corr30s', isHigh30s ? '>21000' : (!isNaN(corr30sNum) ? corr30sNum.toFixed(2) : '')); updateSpan('corr1min', isHigh1min ? '>21000' : (!isNaN(corr1minNum) ? corr1minNum.toFixed(2) : '')); updateSpan('corr10min', isHigh10min ? '>21000' : (!isNaN(corr10minNum) ? corr10minNum.toFixed(2) : '')); updateSpan('ia_val', ia_val !== null ? ia_val.toFixed(2) : ''); updateSpan('ip_val', ip_val !== null ? ip_val.toFixed(2) : ''); if (config.layout === 'grid') { updateDiv('ia_status', ia_result.status, ia_result.color, iaTextColor); updateDiv('ip_status', ip_result.status, ip_result.color, ipTextColor); } else { updateSpan('ia_status', ia_result.status, ia_result.color, iaTextColor); updateSpan('ip_status', ip_result.status, ip_result.color, ipTextColor); } }); } else if (section.type === 'ohmic') { section.rows.forEach(row => { const regValue = parseFloat(container.querySelector(`input[data-row="${row.id}"][data-col="reg"]`)?.value || ''); const corrValueNum = !isNaN(regValue) ? (hasTemp ? regValue * KtOhm : regValue) : NaN; const span = container.querySelector(`span[data-row="${row.id}"][data-col="corr"]`); if(span) span.textContent = !isNaN(corrValueNum) ? corrValueNum.toFixed(4) : ''; }); } }); }; const createTables = () => { config.containerIds.forEach(container => { const el = document.getElementById(container.id); if(el) el.innerHTML = ''; }); config.sections.forEach(section => { let html = `<section data-section-name="${section.name}">`; html += `<h2 class="section-title">${section.name}</h2>`; if (section.type === 'insulation') { if (config.layout === 'grid') { html += `<div id="${config.prefix}-insulation-grid" class="overflow-x-auto shadow-md">${createGridInsulation(section)}</div>`; } else { html += `<div class="overflow-x-auto shadow-md rounded-lg"><table class="data-table">${createTableInsulation(section)}</table></div>`; html += `<div class="overflow-x-auto shadow-md rounded-lg mt-4"><table class="data-table mt-4 indices-table">${createTableIndices(section)}</table></div>`; } } else { html += `<div class="overflow-x-auto shadow-md rounded-lg"><table class="data-table">${config.htmlTemplates[section.type](section)}</table></div>`; } html += `</section>`; const targetContainerId = config.containerIds.find(c => c.type === (section.containerType || 'main')).id; const targetContainer = document.getElementById(targetContainerId); if(targetContainer) targetContainer.innerHTML += html; }); }; const createTableInsulation = (section) => `<thead><tr><th rowspan="2">CONEXÃO</th><th colspan="3">Valor Registrado (MΩ)</th><th colspan="3">Corrigido à ${config.insulation.targetTemp}°C (MΩ)</th></tr><tr><th>30 Seg</th><th>01 min</th><th>10 min</th><th>30 Seg</th><th>01 min</th><th>10 min</th></tr></thead><tbody>${section.rows.map(row => `<tr><td class="label-cell">${row.label}</td><td><input type="number" step="any" data-row="${row.id}" data-col="reg30s" class="input-yellow"></td><td><input type="number" step="any" data-row="${row.id}" data-col="reg1min" class="input-yellow"></td><td><input type="number" step="any" data-row="${row.id}" data-col="reg10min" class="input-yellow"></td><td><span data-row="${row.id}" data-col="corr30s" class="output-span output-blue"></span></td><td><span data-row="${row.id}" data-col="corr1min" class="output-span output-blue"></span></td><td><span data-row="${row.id}" data-col="corr10min" class="output-span output-blue"></span></td></tr>`).join('')}</tbody>`; const createTableIndices = (section) => `<thead><tr><th>CONEXÃO</th><th>IA Valor</th><th>IA Status</th><th>IP Valor</th><th>IP Status</th></tr></thead><tbody>${section.rows.map(row => `<tr><td class="label-cell">${row.label}</td><td><span data-row="${row.id}" data-col="ia_val" class="output-span output-blue"></span></td><td><span data-row="${row.id}" data-col="ia_status" class="output-span"></span></td><td><span data-row="${row.id}" data-col="ip_val" class="output-span output-blue"></span></td><td><span data-row="${row.id}" data-col="ip_status" class="output-span"></span></td></tr>`).join('')}</tbody>`; const createGridInsulation = (section) => { let gridHtml = ''; section.rows.forEach(test => { gridHtml += `<div class="insulation-cell"><div class="cell-title">${test.title}</div><div class="cell-content"><div class="measurement-row"><div class="measurement-item"><label>30s</label><div class="input-group"><input type="number" step="any" data-row="${test.id}" data-col="reg30s" class="input-yellow"><span class="unit">MΩ</span></div></div><div class="measurement-item"><label>1min</label><div class="input-group"><input type="number" step="any" data-row="${test.id}" data-col="reg1min" class="input-yellow"><span class="unit">MΩ</span></div></div><div class="measurement-item"><label>10min</label><div class="input-group"><input type="number" step="any" data-row="${test.id}" data-col="reg10min" class="input-yellow"><span class="unit">MΩ</span></div></div></div><div class="correction-title">Correção para ${config.insulation.targetTemp}°C</div><div class="measurement-row"><div class="measurement-item"><span data-row="${test.id}" data-col="corr30s" class="output-span output-blue"></span></div><div class="measurement-item"><span data-row="${test.id}" data-col="corr1min" class="output-span output-blue"></span></div><div class="measurement-item"><span data-row="${test.id}" data-col="corr10min" class="output-span output-blue"></span></div></div><div class="indices-row"><div class="index-item"><label>Índice de Absorção</label><span data-row="${test.id}" data-col="ia_val" class="output-span output-blue"></span></div><div class="index-item"><label>Índice de Polarização</label><span data-row="${test.id}" data-col="ip_val" class="output-span output-blue"></span></div></div><div class="indices-row mt-2"><div data-row="${test.id}" data-col="ia_status" class="status-cell"></div><div data-row="${test.id}" data-col="ip_status" class="status-cell"></div></div></div></div>`; }); return gridHtml; }; const clearForm = (keepHeader = false) => { if (isAppBlocked) return; const fieldsToKeep = ['cliente', 'local', 'data']; const headerData = {}; if(keepHeader) { fieldsToKeep.forEach(id => { const el = getEl(id); if (el) headerData[id] = el.value; }); } appContainer.querySelectorAll('input:not([type=text][value=OL])').forEach(input => input.value = ''); appContainer.querySelectorAll('span[data-row], div[data-row]').forEach(el => { el.textContent = ''; el.style.backgroundColor = el.matches('.output-blue') ? '#e0f2fe' : 'transparent'; el.style.color = 'black'; }); if(keepHeader) { fieldsToKeep.forEach(id => { const el = getEl(id); if (el) el.value = headerData[id]; }); } if (config.specialHandlers && config.specialHandlers.onClear) { config.specialHandlers.onClear(appContainer, getEl); } recalculate(); }; const collectSheetData = () => { const data = { header: {}, sections: {}, type: config.prefix, appName: config.appName }; appContainer.querySelectorAll('header input, header select').forEach(input => { const key = input.id.replace(`${config.prefix}-`, ''); data.header[key] = input.value; }); appContainer.querySelectorAll('div.grid input').forEach(input => { const key = input.id.replace(`${config.prefix}-`, ''); data.header[key] = input.value; }); appContainer.querySelectorAll('section[data-section-name]').forEach(sectionEl => { if (sectionEl.parentElement.classList.contains('hidden')) { return; } const sectionName = sectionEl.dataset.sectionName; data.sections[sectionName] = {}; sectionEl.querySelectorAll('input[data-row], select[data-row]').forEach(input => { const row = input.dataset.row; const col = input.dataset.col || 'reg'; if (!data.sections[sectionName][row]) data.sections[sectionName][row] = {}; data.sections[sectionName][row][col] = input.value; }); }); return data; }; createTables(); appContainer.addEventListener('input', (e) => (e.target.matches('input, select')) && recalculate()); if (config.specialHandlers && config.specialHandlers.init) { config.specialHandlers.init(appContainer, recalculate, getEl, clearForm, collectSheetData, config); } checkUsage(); recalculate(); window[`recalculate_${config.prefix}`] = recalculate; }; const motorConfig = { prefix: 'motor', appName: 'Motor', containerId: 'motor-app-container', containerIds: [{ id: 'motor-sections-container', type: 'main' }], usageKey: 'unitechMotorAppUsageCount_v2', usageLimit: 20, tempInputId: 'tempEnrolamento', insulation: { targetTemp: 40 }, ohmic: { targetTemp: 25 }, layout: 'table', specialHandlers: reportSheetHandlers, sections: [ { name: 'ESTATOR PRINCIPAL', type: 'insulation', rows: [ { id: 'motor-uxmassa', label: 'U x Massa' }, { id: 'motor-vxmassa', label: 'V x Massa' }, { id: 'motor-wxmassa', label: 'W x Massa' }, { id: 'motor-uxv', label: 'U x V' }, { id: 'motor-vxw', label: 'V x W' }, { id: 'motor-wxu', label: 'W x U' }, ]}, { name: 'RESISTÊNCIA AQUECIMENTO', type: 'heating', rows: [{ id: 'motor-heating-massa', label: 'Massa' }] }, { name: 'MEDIÇÃO RESISTÊNCIA ÔHMICA', type: 'ohmic', rows: [ { id: 'motor-ohm-u', label: 'Fase U' }, { id: 'motor-ohm-v', label: 'Fase V' }, { id: 'motor-ohm-w', label: 'Fase W' }, ]}, { name: 'ASSINATURA', type: 'signature', rows: [{ id: 'motor-responsavelTecnico', label: 'Responsável Técnico' }] } ], htmlTemplates: { 'heating': (s) => `<thead><tr><th>CONEXÃO</th><th>Resist. aquec. (MΩ)</th></tr></thead><tbody>${s.rows.map(r => `<tr><td class="label-cell">${r.label}</td><td><input type="number" step="any" data-row="${r.id}" data-col="reg" class="input-yellow"></td></tr>`).join('')}</tbody>`, 'ohmic': (s) => `<thead><tr><th>CONEXÃO</th><th>Valor Registrado</th><th>Corrigido à 25°C</th></tr></thead><tbody>${s.rows.map(r => `<tr><td class="label-cell"><div class="flex items-center justify-between"><span>${r.label}</span><select data-row="${r.id}" data-col="unit" class="unit-selector"><option>MΩ</option><option>Ω</option><option>mΩ</option><option>µΩ</option></select></div></td><td><input type="number" step="any" data-row="${r.id}" data-col="reg" class="input-yellow"></td><td><span data-row="${r.id}" data-col="corr" class="output-span output-blue"></span></td></tr>`).join('')}</tbody>`, 'signature': (s) => `<tbody><tr><td><div class="p-4 bg-gray-50 rounded-lg border"><label for="${s.rows[0].id}" class="font-semibold">${s.rows[0].label}:</label><input type="text" id="${s.rows[0].id}" data-row="${s.rows[0].id}" data-col="reg" class="border rounded px-2 py-1 w-full mt-2" placeholder="Digite o nome do responsável"></div></td></tr></tbody>` }, testData: { header: { cliente: 'Cliente Motor Exemplo', local: 'Oficina Central', data: new Date().toISOString().split('T')[0], equipamento: 'Motor Bomba Principal', numeroSerie: 'SN-MTR-1234', fabricante: 'WEG / W22', tensao: '440V', potencia: '150 CV', rotacao: '1750 RPM', tempAmbiente: 28, tempEnrolamento: 45, umidadeRelativa: 65 }, sections: { 'ESTATOR PRINCIPAL': { 'motor-uxmassa': [1500, 1800, 2500], 'motor-vxmassa': [1600, 1900, 2600], 'motor-wxmassa': [1550, 1850, 2550], 'motor-uxv': [2000, 2200, 3000], 'motor-vxw': [2100, 2300, 3100], 'motor-wxu': [2050, 2250, 3050] }, 'RESISTÊNCIA AQUECIMENTO': { 'motor-heating-massa': 2.5 }, 'MEDIÇÃO RESISTÊNCIA ÔHMICA': { 'motor-ohm-u': 0.05, 'motor-ohm-v': 0.05, 'motor-ohm-w': 0.05 }, 'ASSINATURA': { 'motor-responsavelTecnico': { reg: 'Roosevelt Santos' } } } } }; const transformerConfig = { prefix: 'transformer', appName: 'Transformador', containerId: 'transformer-app-container', containerIds: [{ id: 'transformer-sections-container', type: 'main' }], usageKey: 'unitechTrafoAppUsageCount_v2', usageLimit: 20, tempInputId: 'tempTrafo', insulation: { targetTemp: 75 }, ohmic: { targetTemp: 25 }, layout: 'grid', specialHandlers: reportSheetHandlers, sections: [ { name: 'MEDIÇÕES REALIZADAS', type: 'insulation', rows: [ { id: 'h1h2-low-gnd', title: 'Alta(H1/H2) para Terra com Baixa(X1/X2) em Guard' }, { id: 'x1x2-high-gnd', title: 'Baixa(X1/X2) para Terra com Alta(H1/H2) em Guard' }, { id: 'h1h2-x1x2-gnd', title: 'Alta(H1/H2) para Baixa(X1/X2) com Terra em Guard' }, { id: 'h2h3-low-gnd', title: 'Alta(H2/H3) para Terra com Baixa(X2/X3) em Guard' }, { id: 'x2x3-high-gnd', title: 'Baixa(X2/X3) para Terra com Alta(H2/H3) em Guard' }, { id: 'h2h3-x2x3-gnd', title: 'Alta(H2/H3) para Baixa(X2/X3) com Terra em Guard' }, { id: 'h1h3-low-gnd', title: 'Alta(H1/H3) para Terra com Baixa(X1/X3) em Guard' }, { id: 'x1x3-high-gnd', title: 'Baixa(X1/X3) para Terra com Alta(H1/H3)em Guard' }, { id: 'h1h3-x1x3-gnd', title: 'Alta(H1/H3) para Baixa(X1/X3) com Terra em Guard' }, ]}, { name: 'MEDIÇÃO RESISTÊNCIA ÔHMICA (Corrigido para 25°C)', type: 'ohmic', rows: [ { id: 'x1-x2', label: 'X1-X2' }, { id: 'x1-x1', label: 'X1-X1' }, { id: 'x2-x3', label: 'X2-X3' }, { id: 'x2-x2', label: 'X2-X2' }, { id: 'x1-x3', label: 'X1-X3' }, { id: 'x3-x3', label: 'X3-X3' }, { id: 'h1-h2', label: 'H1-H2' }, { id: 'h1-h1', label: 'H1-H1' }, { id: 'h2-h3', label: 'H2-H3' }, { id: 'h2-h2', label: 'H2-H2' }, { id: 'h1-h3', label: 'H1-H3' }, { id: 'h3-h3', label: 'H3-H3' }, ]}, { name: 'ASSINATURA', type: 'signature', rows: [{ id: 'transformer-responsavelTecnico', label: 'Responsável Técnico' }] } ], htmlTemplates: { 'ohmic': (s) => { let body = ''; for (let i = 0; i < 6; i++) { const r1 = s.rows[i*2]; const r2 = s.rows[i*2+1]; body += `<tr><td><input type="number" step="any" data-row="${r1.id}" data-col="reg" class="input-yellow"></td><td class="label-cell">${r1.label}</td><td><span data-row="${r1.id}" data-col="corr" class="output-span output-blue"></span></td><td><input type="number" step="any" data-row="${r2.id}" data-col="reg" class="input-yellow"></td><td class="label-cell">${r2.label}</td><td><span data-row="${r2.id}" data-col="corr" class="output-span output-blue"></span></td></tr>`; } return `<thead><tr><th>Valor Registrado (mΩ)</th><th>CONEXÃO</th><th>Corrigido à 25°C</th><th>Valor Registrado (mΩ)</th><th>CONEXÃO</th><th>Corrigido à 25°C</th></tr></thead><tbody>${body}</tbody>`; }, 'signature': motorConfig.htmlTemplates.signature }, testData: { header: { cliente: 'OCEANPACT', local: 'MAC LAREN', data: '2025-01-04', equipamento: 'TRANSFORMADOR-BOW THRUSTER', numeroSerie: '155544KW', fabricante: 'WEG', tensao: 'Primário 440V / Secundário 440V', potencia: '50KVA', tempAmbiente: 33.7, tempTrafo: 40.7, umidadeRelativa: 50 }, sections: { 'MEDIÇÕES REALIZADAS': { 'h1h2-low-gnd': [22000, 22000, 22000], 'x1x2-high-gnd': [22000, 22000, 22000], 'h1h2-x1x2-gnd': [22000, 22000, 22000], 'h2h3-low-gnd': [22000, 22000, 22000], 'x2x3-high-gnd': [22000, 22000, 22000], 'h2h3-x2x3-gnd': [22000, 22000, 22000], 'h1h3-low-gnd': [22000, 22000, 22000], 'x1x3-high-gnd': [22000, 22000, 22000], 'h1h3-x1x3-gnd': [22000, 22000, 22000] }, 'MEDIÇÃO RESISTÊNCIA ÔHMICA (Corrigido para 25°C)': { 'x1-x2': 0.35, 'x1-x1': 0.32, 'x2-x3': 0.34, 'x2-x2': 0.33, 'x1-x3': 0.36, 'x3-x3': 0.31, 'h1-h2': 0.45, 'h1-h1': 0.42, 'h2-h3': 0.44, 'h2-h2': 0.43, 'h1-h3': 0.46, 'h3-h3': 0.41 }, 'ASSINATURA': { 'transformer-responsavelTecnico': { reg: 'Roosevelt Santos' } } } } }; const generatorConfig = { prefix: 'gen', appName: 'Gerador', containerId: 'gen-app-container', containerIds: [ { id: 'gen-main-sections-container', type: 'main' }, { id: 'gen-pmg-section-container', type: 'pmg' }, { id: 'gen-extra-sections-container', type: 'extra' }, ], usageKey: 'unitechGenAppUsageCount_v2', usageLimit: 20, tempInputId: 'tempEnrolamento', insulation: { targetTemp: 40 }, ohmic: { targetTemp: 25 }, layout: 'table', specialHandlers: { init: (container, recalc, getEl, clearForm, collectSheetData) => { reportSheetHandlers.init(container, recalc, getEl, clearForm, collectSheetData, generatorConfig); const pmgBtn = getEl('togglePmg'); const pmgSection = getEl('pmg-section-container'); const pmgOhmicRow = document.getElementById('gen-pmg-ohmic-row'); if(pmgBtn) { pmgBtn.addEventListener('click', () => { const isHidden = pmgSection.classList.contains('hidden'); pmgSection.classList.toggle('hidden'); if (pmgOhmicRow) pmgOhmicRow.classList.toggle('hidden'); pmgBtn.textContent = isHidden ? 'Desativar Seção PMG' : 'Ativar Seção PMG'; pmgBtn.classList.toggle('bg-gray-200'); pmgBtn.classList.toggle('bg-yellow-400'); if (!isHidden) { pmgSection.querySelectorAll('input').forEach(i => i.value = ''); if (pmgOhmicRow) pmgOhmicRow.querySelectorAll('input').forEach(i => i.value = ''); recalc(); } }); } }, onClear: (container, getEl) => { const pmgBtn = getEl('togglePmg'); if (pmgBtn && pmgBtn.textContent.includes('Desativar')) { pmgBtn.click(); } } }, sections: [ { name: 'ESTATOR PRINCIPAL', type: 'insulation', containerType: 'main', rows: [ { id: 'gen-estator-uxmassa', label: 'U x Massa' }, { id: 'gen-estator-vxmassa', label: 'V x Massa' }, { id: 'gen-estator-wxmassa', label: 'W x Massa' }, { id: 'gen-estator-uxv', label: 'U x V' }, { id: 'gen-estator-uxw', label: 'U x W' }, { id: 'gen-estator-wxv', label: 'W x V' }, ]}, { name: 'ROTOR PRINCIPAL', type: 'insulation', containerType: 'main', rows: [{ id: 'gen-rotor-principal', label: 'Rotor x Massa' }] }, { name: 'EXCITATRIZ MOTRIZ', type: 'insulation', containerType: 'main', rows: [{ id: 'gen-excitatriz-estator', label: 'Estator x Massa' }, { id: 'gen-excitatriz-rotor', label: 'Rotor x Massa' }] }, { name: 'EXCITAÇÃO AUXILIAR (PMG)', type: 'insulation', containerType: 'pmg', rows: [{ id: 'gen-pmg-estator', label: 'Estator x Massa' }] }, { name: 'RESISTÊNCIA AQUECIMENTO', type: 'heating', containerType: 'extra', rows: [{ id: 'gen-heating-massa', label: 'Massa' }] }, { name: 'MEDIÇÃO RESISTÊNCIA ÔHMICA', type: 'ohmic', containerType: 'extra', rows: [ { id: 'gen-ohm-uxu', label: 'Fase U x U (V)' }, { id: 'gen-ohm-rotorp', label: 'Rotor Principal' }, { id: 'gen-ohm-vxv', label: 'Fase V x V (W)' }, { id: 'gen-ohm-rotore', label: 'Rotor Excitatriz' }, { id: 'gen-ohm-wxw', label: 'Fase W x W (U)' }, { id: 'gen-ohm-estatore', label: 'Estator Ex. Motriz' }, { id: 'gen-ohm-pmg', label: 'PMG', isPmg: true }, ]}, { name: 'DIODOS ROTATIVOS', type: 'diodes', containerType: 'extra', rows: [{ id: 'gen-diodes-dir' }, { id: 'gen-diodes-rev' }] }, { name: 'ASSINATURA', type: 'signature', containerType: 'extra', rows: [{ id: 'gen-responsavelTecnico', label: 'Responsável Técnico' }] } ], htmlTemplates: { ...motorConfig.htmlTemplates, 'ohmic': (s) => { let body = ''; for (let i = 0; i < 3; i++) { const r1 = s.rows[i*2]; const r2 = s.rows[i*2+1]; body += `<tr><td class="label-cell">${r1.label}</td><td><input type="number" step="any" data-row="${r1.id}" data-col="reg" class="input-yellow"></td><td><span data-row="${r1.id}" data-col="corr" class="output-span output-blue"></span></td><td class="label-cell"><div class="flex items-center justify-between"><span>${r2.label}</span><select data-row="${r2.id}" data-col="unit" class="unit-selector"><option>MΩ</option><option>Ω</option><option>mΩ</option><option>µΩ</option></select></div></td><td><input type="number" step="any" data-row="${r2.id}" data-col="reg" class="input-yellow"></td><td><span data-row="${r2.id}" data-col="corr" class="output-span output-blue"></span></td></tr>`; } const pmgRow = s.rows.find(r => r.isPmg); if (pmgRow) { body += `<tr id="gen-pmg-ohmic-row" class="hidden"><td class="label-cell"><div class="flex items-center justify-between"><span>${pmgRow.label}</span><select data-row="${pmgRow.id}" data-col="unit" class="unit-selector"><option>MΩ</option><option>Ω</option><option>mΩ</option><option>µΩ</option></select></div></td><td><input type="number" step="any" data-row="${pmgRow.id}" data-col="reg" class="input-yellow"></td><td><span data-row="${pmgRow.id}" data-col="corr" class="output-span output-blue"></span></td><td colspan="3"></td></tr>`; } return `<thead><tr><th>CONEXÃO</th><th>Valor Registrado</th><th>Corrigido à 25°C</th><th>CONEXÃO</th><th>Valor Registrado</th><th>Corrigido à 25°C</th></tr></thead><tbody>${body}</tbody>`; }, 'diodes': (s) => { let body = `<tr><td class="label-cell">Reversa (OL)</td>${Array.from({length: 6}, (_, i) => `<td><input type="text" data-row="gen-diodes-rev" data-col="d${i+1}" class="input-yellow" value="OL"></td>`).join('')}</tr><tr><td class="label-cell">Direta (Vdc)</td>${Array.from({length: 6}, (_, i) => `<td><input type="number" step="any" data-row="gen-diodes-dir" data-col="d${i+1}" class="input-yellow"></td>`).join('')}</tr>`; let body2 = `<tr><td class="label-cell">Reversa (OL)</td>${Array.from({length: 6}, (_, i) => `<td><input type="text" data-row="gen-diodes-rev" data-col="d${i+7}" class="input-yellow" value="OL"></td>`).join('')}</tr><tr><td class="label-cell">Direta (Vdc)</td>${Array.from({length: 6}, (_, i) => `<td><input type="number" step="any" data-row="gen-diodes-dir" data-col="d${i+7}" class="input-yellow"></td>`).join('')}</tr>`; return `<thead><tr><th>Polarização</th>${Array.from({length: 6}, (_, i) => `<th>D${i+1}</th>`).join('')}</tr></thead><tbody>${body}</tbody><thead><tr><th>Polarização</th>${Array.from({length: 6}, (_, i) => `<th>D${i+7}</th>`).join('')}</tr></thead><tbody>${body2}</tbody>`; } }, testData: { header: { cliente: 'Estaleiro Naval', local: 'Navio Exemplo', data: new Date().toISOString().split('T')[0], tecnico: 'Téc. Exemplo', equipamento: 'Gerador Principal #1', numeroSerie: 'SN-5678', avr: 'AVR-123', tensao: '440V', potencia: '550 kVA', tempAmbiente: 25, tempEnrolamento: 50, umidadeRelativa: 70 }, sections: { 'ESTATOR PRINCIPAL': { 'gen-estator-uxmassa': [1200, 1500, 2000], 'gen-estator-vxmassa': [1300, 1600, 2100], 'gen-estator-wxmassa': [1250, 1550, 2050], 'gen-estator-uxv': [3000, 4000, 5000], 'gen-estator-uxw': [3100, 4100, 5100], 'gen-estator-wxv': [3050, 4050, 5050] }, 'ROTOR PRINCIPAL': { 'gen-rotor-principal': [500, 600, 800] }, 'EXCITATRIZ MOTRIZ': { 'gen-excitatriz-estator': [800, 900, 1100], 'gen-excitatriz-rotor': [700, 850, 1000] }, 'EXCITAÇÃO AUXILIAR (PMG)': { 'gen-pmg-estator': [1000, 1200, 1500] }, 'RESISTÊNCIA AQUECIMENTO': { 'gen-heating-massa': 1.5 }, 'MEDIÇÃO RESISTÊNCIA ÔHMICA': { 'gen-ohm-uxu': 1.1, 'gen-ohm-rotorp': 2.2, 'gen-ohm-vxv': 1.2, 'gen-ohm-rotore': 3.3, 'gen-ohm-wxw': 1.1, 'gen-ohm-estatore': 4.4, 'gen-ohm-pmg': 5.5 }, 'DIODOS ROTATIVOS': { 'gen-diodes-dir': { d1_d6: [0.432, 0.438, 0.441, 0.429, 0.435, 0.440], d7_d12: [0.425, 0.431, 0.428, 0.433, 0.439, 0.427] } }, 'ASSINATURA': { 'gen-responsavelTecnico': { reg: 'Roosevelt Santos' } } } } };
+        function populateSheetFromData(container, reportData, config) { Object.entries(reportData.header).forEach(([key, value]) => { const el = container.querySelector(`#${config.prefix}-${key}`); if (el) el.value = value; }); Object.entries(reportData.sections).forEach(([sectionName, sectionData]) => { Object.entries(sectionData).forEach(([rowId, rowData]) => { Object.entries(rowData).forEach(([colId, value]) => { const input = container.querySelector(`input[data-row="${rowId}"][data-col="${colId}"], select[data-row="${rowId}"][data-col="${colId}"]`); if (input) input.value = value; }); }); }); if (config.prefix === 'gen') { const pmgBtn = container.querySelector('#gen-togglePmg'); const pmgSection = container.querySelector('#gen-pmg-section-container'); const hasPmgData = reportData.sections['EXCITAÇÃO AUXILIAR (PMG)']; const isPmgSectionHidden = pmgSection.classList.contains('hidden'); if (hasPmgData && isPmgSectionHidden) { pmgSection.classList.remove('hidden'); } else if (!hasPmgData && !isPmgSectionHidden) { pmgSection.classList.add('hidden'); } } window[`recalculate_${config.prefix}`](container); }
+        
+        // --- INICIALIZAÇÃO DA APLICAÇÃO ---
+        loadReportsFromServer();
+        initializeCoverApp();
+        createApp(motorConfig);
+        createApp(transformerConfig);
+        createApp(generatorConfig);
+    });
+    </script>
+</body>
+</html>
